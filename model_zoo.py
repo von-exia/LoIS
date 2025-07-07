@@ -208,7 +208,7 @@ if __name__ == '__main__':
     ## CLIP part ##
     from CLIP import clip
     clip_model, preprocess = clip.load("ViT-B/16", \
-    device=torch.device("cpu"), download_root="。//clip_model")   #ViT-B/16
+    device=torch.device("cpu"), download_root="./clip_model")   #ViT-B/16
     x = torch.randn([32, 3, 224, 224]).cuda()
     y = torch.ones([4, 5]).cuda()
     x = torch.randn([2, 3, 224, 224, 5]).cuda()
