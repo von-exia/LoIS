@@ -55,7 +55,7 @@ from model_zoo import Detector, logprobs_from_logits, ValueModel, batch_gae, com
 from CLIP import clip
 # model_scale = "ViT-L/14" 
 model_scale = "ViT-B/16" 
-clip_model, preprocess = clip.load(model_scale, device=torch.device("cpu"), download_root="/home/liu/fcb1/clip_model")
+clip_model, preprocess = clip.load(model_scale, device=torch.device("cpu"), download_root="./clip_model")
 model = Detector(clip_model, model_scale).cuda()
 
 if model_scale == "ViT-B/16":
