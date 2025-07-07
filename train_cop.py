@@ -20,28 +20,9 @@ torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.enabled = False
-# torch.backends.cudnn.deterministic = False
-# torch.backends.cudnn.benchmark = True
-# torch.backends.cudnn.enabled = True
 print('Random seed :', seed)
-# torch.use_deterministic_algorithms(True)
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
-# torch.autograd.set_detect_anomaly(True)
-
-# import cv2
-# def Tensor2cv(img_tensor):
-#     img_tensor *= torch.tensor([0.26862954, 0.26130258, 0.27577711]).unsqueeze(-1).unsqueeze(-1).cuda()
-#     img_tensor += torch.tensor([0.48145466, 0.4578275, 0.40821073]).unsqueeze(-1).unsqueeze(-1).cuda()
-#     img_tensor = img_tensor.detach().permute(1, 2, 0).cpu()
-#     img_numpy = img_tensor.numpy() * 255
-#     img_numpy = np.uint8(img_numpy)
-#     img_numpy = cv2.cvtColor(img_numpy, cv2.COLOR_RGB2BGR)
-#     return img_numpy
-
-# img1 = Tensor2cv(img[0, ..., 0])
-# cv2.imwrite("test.png", img1)
-# exit(0)
 
 from collections import OrderedDict
 @torch.no_grad()
@@ -72,7 +53,7 @@ def compute_AUC(y, pred):
 device = "cuda" if torch.cuda.is_available() else "cpu"
 from model_zoo import Detector, logprobs_from_logits, ValueModel, batch_gae, compute_correctness
 from CLIP import clip
-# model_scale = "ViT-L/14"  # ViT-B/16  ViT-L/14
+# model_scale = "ViT-L/14" 
 model_scale = "ViT-B/16" 
 clip_model, preprocess = clip.load(model_scale, device=torch.device("cpu"), download_root="/home/liu/fcb1/clip_model")
 model = Detector(clip_model, model_scale).cuda()
@@ -81,9 +62,8 @@ if model_scale == "ViT-B/16":
     model_scale = "ViT_B_16"
     patch_num = 14
     batch_size = 8
-    gradient_accumulation_steps = 1  # 累积n个batch的梯度后再更新参数
-    path = "/home/liu/fcb1/reft/trained_weight/A_SL_clip_ViT_B_16_Epoch1_cdf0.7976.pth"
-    # path = "/home/liu/fcb1/reft/trained_weight/ABL_warmup3_SL_clip_ViT_B_16_Epoch3_cdf0.7866.pth"
+    gradient_accumulation_steps = 1
+    path = "./trained_weight/SL_clip_ViT_B_16.pth"
     model.value_head = ValueModel(policy_dim=512).to(device)
     best_auc = 0.7
 else:
@@ -91,7 +71,7 @@ else:
     patch_num = 16
     batch_size = 2
     gradient_accumulation_steps = 4 # bset
-    path = "/home/liu/fcb1/reft/trained_weight/A_SL_clip_ViT_L_14_Epoch1_cdf0.8884.pth"
+    path = "./trained_weight/SL_clip_ViT_L_14.pth"
     model.value_head = ValueModel(policy_dim=768).to(device)
     best_auc = 0.91
 
@@ -100,8 +80,8 @@ print(f"loaded SL pretrained weights from {path}.")
 
 
 from copy import deepcopy
-ref_model = deepcopy(model).to(device)  # Create an EMA of the model for use after training
-update_ema(ref_model, model, decay=0)  # Ensure EMA is initialized with synced weights
+ref_model = deepcopy(model).to(device)  # Create a reference model for use after training
+update_ema(ref_model, model, decay=0)  # Ensure reference model is initialized with synced weights
 requires_grad(ref_model, False)
 ref_model.eval()
 
@@ -176,22 +156,15 @@ def rollout(model, img, chain_len, gt_lab):
 
     # Evaluate score
     # threshold for binary classification
-    # 计算每个时间步的预测值和目标值
-    final_answers = probs_list.softmax(dim=-1)[:, :, 1]  # 获取每个时间步的最终预测值
+    final_answers = probs_list.softmax(dim=-1)[:, :, 1]
 
-    # 计算所有时间步的差距 (gap)
     gap = torch.abs(final_answers - gt_lab)
     
-    # 计算正确性分数 (correctness)
     # best
     th = 0.5 
     th_min = 0.07
     
-    # th = 0.5 
-    # th_min = 0.1
-    
     correctness = compute_correctness(gap, th, th_min)
-
     rew = correctness.clone()
 
     # # best
@@ -204,7 +177,7 @@ def rollout(model, img, chain_len, gt_lab):
     return rew, correctness, ret, val, old_logprob, ref_logprob, adv, gt_lab, img
 
 
-effective_batch_size = batch_size * gradient_accumulation_steps  # 实际等效batch_size
+effective_batch_size = batch_size * gradient_accumulation_steps 
 print(f"Using gradient accumulation: {gradient_accumulation_steps} steps, effective batch size = {effective_batch_size}")
 
 
@@ -215,7 +188,6 @@ for e in range(0, Epoch):
     for step_id, data in enumerate(train_set):
         img = data['img'].to(device, non_blocking=True).float()
         label = data['label'].to(device, non_blocking=True).float() 
-        # prob_list = data['prob_list'].to(device, non_blocking=True).float() 
         
         img = (img - clip_mean) / clip_std
         chain_len = img.shape[-1]
@@ -259,17 +231,13 @@ for e in range(0, Epoch):
             vf_loss = 0.5 * ((torch.max(vf_losses1, vf_losses2)).sum(dim=-1) / chain_len).mean()
 
             # total loss
-            # loss += 1. * pg_loss + 1. * vf_loss + 0.2 * prob_loss 
-            loss += 1. * pg_loss + 1. * vf_loss ## best for ViT-B/16 (CE loss)
-            # loss += 1. * pg_loss + 5. * vf_loss + 0.5 * prob_loss # best for ViT-L/14
-            # loss += 1. * pg_loss + 5. * vf_loss
+            loss += 1. * pg_loss + 1. * vf_loss # best for ViT-B/16 
             
             loss = loss / gradient_accumulation_steps
             loss.backward()
-            # 达到累积步数时更新参数
             if (step_id + 1) % gradient_accumulation_steps == 0:
                 optimizer.step()
-                optimizer.zero_grad()  # 清空梯度
+                optimizer.zero_grad() 
 
             
         if not (step_id+1) % (30 * gradient_accumulation_steps):
@@ -305,12 +273,11 @@ for e in range(0, Epoch):
             print(f'Frame-level CDF test AUC:{cur_auc:.4f}')
             
             if best_auc < cur_auc:
-                # best_auc = cur_auc
                 checkpoint = {
                         "epoch": e_cnt,
                         "model": model.state_dict(),
                     }
-                torch.save(checkpoint, f'/home/liu/fcb1/reft/trained_weight/ABL_rew_0.5_0.1_RL_{model_scale}_Epoch{e_cnt}_cdf{cur_auc:.4f}.pth')
+                torch.save(checkpoint, f'./trained_weight/RL_{model_scale}_Epoch{e_cnt}_cdf{cur_auc:.4f}.pth')
 
     
             end = time.time()
