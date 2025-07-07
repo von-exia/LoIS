@@ -21,7 +21,6 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 print('Random seed :', seed)
-# torch.use_deterministic_algorithms(True)
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 torch.autograd.set_detect_anomaly(True)
@@ -63,10 +62,10 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 from model_zoo import Detector
 
 from CLIP import clip
-model_scale = "ViT-L/14"  # ViT-B/16 ViT-B/32  ViT-L/14
+model_scale = "ViT-L/14"  # ViT-B/16 ViT-L/14
 model_scale = "ViT-B/16" 
 clip_model, preprocess = clip.load(model_scale,  
-device=torch.device("cpu"), download_root="/home/liu/fcb1/clip_model")
+device=torch.device("cpu"), download_root="./clip_model")
 
 model = Detector(clip_model, model_scale).cuda().float()
 
@@ -74,11 +73,7 @@ if model_scale == "ViT-B/16":
     model_scale = "ViT_B_16"
     patch_num = 14
     batch_size = 32
-    gradient_accumulation_steps = 1  # 累积n个batch的梯度后再更新参数
-    
-    # path = "/home/liu/fcb1/reft/trained_weight/A_SL_clip_ViT_B_16_Epoch1_cdf0.7976.pth"
-    # model.load_state_dict(torch.load(path)['model'], strict=False)
-    # print(f"loaded SL pretrained weights from {path}.")
+    gradient_accumulation_steps = 1  
 else:
     model_scale = "ViT_L_14"
     patch_num = 16
@@ -140,7 +135,7 @@ clip_mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).reshape(1, 3, 1, 1
 clip_std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).reshape(1, 3, 1, 1).cuda()
 
 
-effective_batch_size = batch_size * gradient_accumulation_steps  # 实际等效batch_size
+effective_batch_size = batch_size * gradient_accumulation_steps 
 print(f"Using gradient accumulation: {gradient_accumulation_steps} steps, effective batch size = {effective_batch_size}")
 
 max_val_auc = 0.
@@ -159,17 +154,12 @@ for e in range(1, Epoch+1):
         
         probs, _ = model.test_forward(img)  
         loss = F.cross_entropy(probs, label)
-
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
         
         loss = loss / gradient_accumulation_steps
         loss.backward()
-        # 达到累积步数时更新参数
         if (step_id + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
-            optimizer.zero_grad()  # 清空梯度
+            optimizer.zero_grad() 
 
         
         if not (step_id+1) % (30 * gradient_accumulation_steps):
@@ -203,7 +193,7 @@ for e in range(1, Epoch+1):
                         "epoch": e,
                         "model": model.state_dict(),
                     }
-                torch.save(checkpoint, f'/home/liu/fcb1/reft/trained_weight/SL_clip_{model_scale}_Epoch{e}_cdf{cur_auc:.4f}.pth')
+                torch.save(checkpoint, f'./trained_weight/SL_clip_{model_scale}_Epoch{e}_cdf{cur_auc:.4f}.pth')
             model.train()
     
 
