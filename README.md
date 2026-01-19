@@ -24,7 +24,7 @@ In this link [[Baidu Disk](https://pan.baidu.com/s/1KTLQiA5fiOtJBDJ1_OmVww?pwd=9
 
 1. `LoIS_ViT_L_14.pth` (~1GB): Trained from CLIP ViT-Large (PyTorch).
 2. `LoIS_ViT_B_16.pth` (328MB): Trained from CLIP ViT-Base (PyTorch).
-3. `RL_detector_b.mnn` (88MB): Int8 quantized model converted from `LoIS_ViT_B_16.pth` using the [MNN](https://github.com/alibaba/MNN/tree/master) (Mobile Neural Network) framework. This version is recommended for inference and experimenting with LoIS.
+3. `RL_detector_b.mnn` (88MB): Int8 quantified model converted from `LoIS_ViT_B_16.pth` using the [MNN](https://github.com/alibaba/MNN/tree/master) (Mobile Neural Network) framework. This version is recommended for inference and experimenting with LoIS.
 
 ## 💪 Training
 
